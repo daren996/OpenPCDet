@@ -1,0 +1,18 @@
+python demo.py --cfg_file cfgs/kitti_models/pv_rcnn.yaml \
+    --ckpt pv_rcnn_8369.pth \
+    --data_path /home/daren/Downloads/training/velodyne/003574.bin
+
+ln -s /media/daren/DATADRIVE2/Dataset/nuScenes/samples /media/daren/DATADRIVE2/GitLibrary/OpenPCDet/data/nuscenes/v1.0-trainval/samples
+ln -s /media/daren/DATADRIVE2/Dataset/nuScenes/sweeps /media/daren/DATADRIVE2/GitLibrary/OpenPCDet/data/nuscenes/v1.0-trainval/sweeps
+ln -s /media/daren/DATADRIVE2/Dataset/nuScenes/maps /media/daren/DATADRIVE2/GitLibrary/OpenPCDet/data/nuscenes/v1.0-trainval/maps
+ln -s /media/daren/DATADRIVE2/Dataset/nuScenes/v1.0-trainval /media/daren/DATADRIVE2/GitLibrary/OpenPCDet/data/nuscenes/v1.0-trainval/v1.0-trainval
+
+python -m pcdet.datasets.nuscenes.nuscenes_dataset --func create_nuscenes_infos \
+    --cfg_file tools/cfgs/dataset_configs/nuscenes_dataset.yaml \
+    --version v1.0-trainval
+
+python test.py --cfg_file cfgs/nuscenes_models/cbgs_pp_multihead.yaml \
+	--batch_size 16 \
+	--ckpt pp_multihead_nds5823_updated.pth
+
+

@@ -1,4 +1,4 @@
-import _init_path
+# import _init_path
 import argparse
 import datetime
 import glob
@@ -93,6 +93,7 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
         pass
 
     # tensorboard log
+    tb_log = None
     if cfg.LOCAL_RANK == 0:
         tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
     total_time = 0
@@ -136,7 +137,7 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
 
 
 def main():
-    args, cfg = parse_config()
+    args, the_cfg = parse_config()
 
     if args.infer_time:
         os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -145,26 +146,27 @@ def main():
         dist_test = False
         total_gpus = 1
     else:
-        total_gpus, cfg.LOCAL_RANK = getattr(common_utils, 'init_dist_%s' % args.launcher)(
+        total_gpus, the_cfg.LOCAL_RANK = getattr(common_utils, 'init_dist_%s' % args.launcher)(
             args.tcp_port, args.local_rank, backend='nccl'
         )
         dist_test = True
 
     if args.batch_size is None:
-        args.batch_size = cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU
+        args.batch_size = the_cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU
     else:
         assert args.batch_size % total_gpus == 0, 'Batch size should match the number of gpus'
         args.batch_size = args.batch_size // total_gpus
 
-    output_dir = cfg.ROOT_DIR / 'output' / cfg.EXP_GROUP_PATH / cfg.TAG / args.extra_tag
+    output_dir = the_cfg.ROOT_DIR / 'output' / the_cfg.EXP_GROUP_PATH / the_cfg.TAG / args.extra_tag
     output_dir.mkdir(parents=True, exist_ok=True)
 
     eval_output_dir = output_dir / 'eval'
 
+    epoch_id = None
     if not args.eval_all:
         num_list = re.findall(r'\d+', args.ckpt) if args.ckpt is not None else []
         epoch_id = num_list[-1] if num_list.__len__() > 0 else 'no_number'
-        eval_output_dir = eval_output_dir / ('epoch_%s' % epoch_id) / cfg.DATA_CONFIG.DATA_SPLIT['test']
+        eval_output_dir = eval_output_dir / ('epoch_%s' % epoch_id) / the_cfg.DATA_CONFIG.DATA_SPLIT['test']
     else:
         eval_output_dir = eval_output_dir / 'eval_all_default'
 
@@ -173,7 +175,7 @@ def main():
 
     eval_output_dir.mkdir(parents=True, exist_ok=True)
     log_file = eval_output_dir / ('log_eval_%s.txt' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-    logger = common_utils.create_logger(log_file, rank=cfg.LOCAL_RANK)
+    logger = common_utils.create_logger(log_file, rank=the_cfg.LOCAL_RANK)
 
     # log to file
     logger.info('**********************Start logging**********************')
@@ -184,18 +186,18 @@ def main():
         logger.info('total_batch_size: %d' % (total_gpus * args.batch_size))
     for key, val in vars(args).items():
         logger.info('{:16} {}'.format(key, val))
-    log_config_to_file(cfg, logger=logger)
+    log_config_to_file(the_cfg, logger=logger)
 
     ckpt_dir = args.ckpt_dir if args.ckpt_dir is not None else output_dir / 'ckpt'
 
     test_set, test_loader, sampler = build_dataloader(
-        dataset_cfg=cfg.DATA_CONFIG,
-        class_names=cfg.CLASS_NAMES,
+        dataset_cfg=the_cfg.DATA_CONFIG,
+        class_names=the_cfg.CLASS_NAMES,
         batch_size=args.batch_size,
         dist=dist_test, workers=args.workers, logger=logger, training=False
     )
 
-    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=test_set)
+    model = build_network(model_cfg=the_cfg.MODEL, num_class=len(the_cfg.CLASS_NAMES), dataset=test_set)
     with torch.no_grad():
         if args.eval_all:
             repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=dist_test)
